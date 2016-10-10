@@ -4,7 +4,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const request = require('request');
-require('dotenv').config();
 
 const app = express();
 app.set('port', process.env.PORT || 5000);
@@ -46,6 +45,7 @@ app.get('/webhook', function(req, res) {
  */
 app.post('/webhook', function (req, res) {
   var data = req.body;
+  console.log(data);
 
   // Make sure this is a page subscription
   if (data.object == 'page') {
@@ -100,6 +100,8 @@ function callSendAPI(messageData) {
 }
 
 function receivedMessage(event) {
+  console.log(event);
+
   var senderID = event.sender.id;
   var recipientID = event.recipient.id;
   var timeOfMessage = event.timestamp;
