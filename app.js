@@ -147,12 +147,17 @@ function receivedMessage(event) {
  *
  */
 function sendTextMessage(recipientId, messageText) {
+  const index = Math.floor(Math.random() * (app.locals.questions.length + 1));
+  console.log(`index:${index}`);
+  const question = app.locals.questions[index];
+  console.log(`question:${question}`);
+
   var messageData = {
     recipient: {
       id: recipientId
     },
     message: {
-      text: 'Hi! I\'m Interviewbud, here to help you practice for job interviews. Wanna start?',
+      text: question,
       metadata: "DEVELOPER_DEFINED_METADATA"
     }
   };
@@ -190,11 +195,26 @@ function verifyRequestSignature(req, res, buf) {
   }
 }
 
+app.locals.questions = [];
+
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
 // certificate authority.
-app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
+const url = `${process.env.IVB_QUESTIONS_URL}questions?filter[posts_per_page]=50`;
+request(url, function (error, response, body) {
+  if (!error && response.statusCode == 200) {
+    console.log('Loading questions...');
+    JSON.parse(body).forEach((question) => {
+      const category = Number(question.categories[0]);
+      if (category == 1) {
+        app.locals.questions.push(question.question_title);
+      }
+    });
+    console.log(`Loaded ${app.locals.questions.length} questions.`);
+    app.listen(app.get('port'), function() {
+      console.log('Node app is running on port', app.get('port'));
+    });
+  }
 });
 
 module.exports = app;
