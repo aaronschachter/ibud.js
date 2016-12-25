@@ -102,7 +102,7 @@ function receivedMessage(event) {
   console.log('event');
   console.log(event);
 
-  var senderID = event.sender.id;
+  var senderId = event.sender.id;
   var recipientID = event.recipient.id;
   var timeOfMessage = event.timestamp;
   var message = event.message;
@@ -115,12 +115,12 @@ function receivedMessage(event) {
 
   if (messageText) {
     // TODO: Check for commands like Hi, Hello, Help, Quit, Cancel, Who is this / Who are you
-    sendInterviewQuestion(senderID, messageText);
+    sendInterviewQuestion(senderId);
   } else if (event.postback && event.postback.payload === 'dont_know') {
     console.log('dont_know');
-    sendInterviewQuestion(senderID, messageText);
+    sendInterviewQuestion(senderId);
   } else if (messageAttachments) {
-    sendTextMessage(senderID, "Message with attachment received");
+    sendTextMessage(senderId, "Message with attachment received");
   }
 }
 
@@ -153,7 +153,7 @@ function sendTextMessage(recipientId, messageText) {
   callSendAPI(messageData);
 }
 
-function sendInterviewQuestion(recipientId, questionText) {
+function sendInterviewQuestion(recipientId) {
 
   const messageData = {
     recipient: {
