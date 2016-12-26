@@ -5,6 +5,15 @@ const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const request = require('request');
 
+const mongoose = require ('mongoose');
+const DB_URI = process.env.DB_URI || 'mongodb://localhost/interviewbud';
+mongoose.Promise = global.Promise;
+const conn = mongoose.createConnection(DB_URI);
+const users = require('./models/User')(conn);
+conn.on('connected', () => {
+  console.log(`conn.readyState:${conn.readyState}`);
+});
+
 const app = express();
 app.set('port', process.env.PORT || 5000);
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
@@ -102,58 +111,61 @@ function receivedMessage(event) {
   console.log('event');
   console.log(event);
 
-  var senderId = event.sender.id;
-  var recipientID = event.recipient.id;
-  var timeOfMessage = event.timestamp;
-  var message = event.message;
+  let responseText;
+  const senderId = event.sender.id;
+  const userData = { last_message_received_at: Date.now() };
+  const index = Math.floor(Math.random() * (app.locals.questions.length));
+  const question = app.locals.questions[index];
+  const questionText = question.question_title;   
+  const message = event.message;
   if (message) {
-    // You may get a text or attachment but not both
-    var messageText = message.text;
-    var messageAttachments = message.attachments;
-    var quickReply = message.quick_reply;
-  }
-
-  if (messageText) {
-    // TODO: Check for commands like Hi, Hello, Help, Quit, Cancel, Who is this / Who are you
-    sendInterviewQuestion(senderId);
+    const messageId = message.mid;
+    if (message.attachments) {
+      responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
+      sendTextMessage(senderId, responseText); 
+    }
+    if (message.text) {
+      // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
+      userData.last_message_received = message.text;
+      sendInterviewQuestion(senderId, questionText);
+    }
   } else if (event.postback && event.postback.payload === 'dont_know') {
     console.log('dont_know');
-    sendInterviewQuestion(senderId);
-  } else if (messageAttachments) {
-    sendTextMessage(senderId, "Message with attachment received");
+    sendInterviewQuestion(senderId, questionText);
   }
+
+  users.findByIdAndUpdate(senderId, userData, { upsert: true })
+    .exec()
+    .then((user) => {
+      console.log('users.findByIdAndUpdate success');
+      console.log(user);
+    })
+    .catch((error) => {
+      console.log('users.findByIdAndUpdate error');
+      console.log(error);
+    });
 }
 
-function getQuestion() {
-  const index = Math.floor(Math.random() * (app.locals.questions.length + 1));
-
-  return app.locals.questions[index];
-}
-
-/*
+/**
  * Send a text message using the Send API.
- *
  */
 function sendTextMessage(recipientId, messageText) {
-  const index = Math.floor(Math.random() * (app.locals.questions.length + 1));
-  console.log(`index:${index}`);
-  const question = app.locals.questions[index];
-  console.log(`question:${question}`);
-
   var messageData = {
     recipient: {
       id: recipientId
     },
     message: {
-      text: question,
-      metadata: "DEVELOPER_DEFINED_METADATA"
+      text: messageText,
     }
   };
 
   callSendAPI(messageData);
 }
 
-function sendInterviewQuestion(recipientId) {
+/**
+ * Send an interview question using the Send API.
+ */
+function sendInterviewQuestion(recipientId, questionText) {
 
   const messageData = {
     recipient: {
@@ -164,7 +176,7 @@ function sendInterviewQuestion(recipientId) {
         type: 'template',
         payload: {
           template_type: 'button',
-          text: getQuestion(),
+          text: questionText,
           buttons: [
             {
               type: 'postback',
@@ -220,10 +232,12 @@ request(url, function (error, response, body) {
     console.log('Loading questions...');
     JSON.parse(body).forEach((question) => {
       const category = Number(question.categories[0]);
+      // Hardcoded to only ask general questions for now.
       if (category == 1) {
-        app.locals.questions.push(question.question_title);
+        app.locals.questions.push(question);
       }
     });
+
     console.log(`Loaded ${app.locals.questions.length} questions.`);
     app.listen(app.get('port'), function() {
       console.log('Node app is running on port', app.get('port'));
