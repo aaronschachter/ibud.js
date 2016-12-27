@@ -11,6 +11,10 @@ const Promise = require('bluebird');
  */
 const userSchema = new mongoose.Schema({
     _id: { type: String, index: true },
+    current_interview_question: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'interview_questions',
+    },
     last_message_received: String,
     last_message_received_at: Date,
   },

@@ -9,7 +9,9 @@ const mongoose = require ('mongoose');
 const DB_URI = process.env.DB_URI || 'mongodb://localhost/interviewbud';
 mongoose.Promise = global.Promise;
 const conn = mongoose.createConnection(DB_URI);
+const interviewQuestions = require('./models/InterviewQuestion')(conn);
 const users = require('./models/User')(conn);
+
 conn.on('connected', () => {
   console.log(`conn.readyState:${conn.readyState}`);
 });
@@ -107,43 +109,99 @@ function callSendAPI(messageData) {
   });  
 }
 
+function getQuestion() {
+  const index = Math.floor(Math.random() * (app.locals.questions.length));
+  return app.locals.questions[index];
+}
+
 function receivedMessage(event) {
   console.log('event');
   console.log(event);
 
+  let currentInterviewQuestion;
+  let currentUser;
   let responseText;
   const senderId = event.sender.id;
-  const userData = { last_message_received_at: Date.now() };
-  const index = Math.floor(Math.random() * (app.locals.questions.length));
-  const question = app.locals.questions[index];
-  const questionText = question.question_title;   
   const message = event.message;
-  if (message) {
-    const messageId = message.mid;
-    if (message.attachments) {
-      responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
-      sendTextMessage(senderId, responseText); 
-    }
-    if (message.text) {
-      // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
-      userData.last_message_received = message.text;
-      sendInterviewQuestion(senderId, questionText);
-    }
-  } else if (event.postback && event.postback.payload === 'dont_know') {
-    console.log('dont_know');
-    sendInterviewQuestion(senderId, questionText);
-  }
 
-  users.findByIdAndUpdate(senderId, userData, { upsert: true })
+  users.findById(senderId)
+    .populate('current_interview_question')
     .exec()
     .then((user) => {
-      console.log('users.findByIdAndUpdate success');
-      console.log(user);
+      if (!(user)) {
+        // TODO: Handle creating a user.
+      }
+
+      console.log(user.current_interview_question);
+
+      currentUser = user;
+      currentInterviewQuestion = currentUser.current_interview_question;
+
+      if (!currentInterviewQuestion) {
+        return sendInterviewQuestion(senderId);
+      }
+
+      const dontKnow = event.postback && event.postback.payload === 'dont_know';
+      if (dontKnow) {
+        currentInterviewQuestion.answered = false;
+        currentInterviewQuestion.save();
+        return sendInterviewQuestion(senderId, true);
+      }
+
+      if (message.attachments) {
+        responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
+        sendTextMessage(senderId, responseText); 
+      }
+
+      if (message.text) {
+        // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
+        currentUser.last_message_received = message.text;
+        currentInterviewQuestion.save();
+        currentInterviewQuestion.answered = true;
+        currentInterviewQuestion.answer = message.text;
+        return sendInterviewQuestion(senderId, true);
+       }
     })
-    .catch((error) => {
-      console.log('users.findByIdAndUpdate error');
-      console.log(error);
-    });
+    .then((interviewQuestion) => {
+      console.log(`created interviewQuestion ${interviewQuestion._id.toString()}`);
+      currentUser.current_interview_question = interviewQuestion._id;
+      currentUser.save();
+    })
+    .then((user) => {
+      console.log('updated user.current_interview_question');
+
+      return true;
+    })
+    .catch(error => console.log(error));
+
+//   const userData = { last_message_received_at: Date.now() };
+
+//   if (message) {
+//     const messageId = message.mid;
+//     if (message.attachments) {
+//       responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
+//       sendTextMessage(senderId, responseText); 
+//     }
+//     if (message.text) {
+//       // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
+//       userData.last_message_received = message.text;
+//       sendInterviewQuestion(senderId, questionText);
+//     }
+//   } else if (event.postback && event.postback.payload === 'dont_know') {
+//     console.log('dont_know');
+//     sendInterviewQuestion(senderId, questionText);
+//   }
+
+//   users.findByIdAndUpdate(senderId, userData, { upsert: true })
+//     .exec()
+//     .then((user) => {
+//       console.log('users.findByIdAndUpdate success');
+//       console.log(user);
+//     })
+//     .catch((error) => {
+//       console.log('users.findByIdAndUpdate error');
+//       console.log(error);
+//     });
 }
 
 /**
@@ -165,18 +223,19 @@ function sendTextMessage(recipientId, messageText) {
 /**
  * Send an interview question using the Send API.
  */
-function sendInterviewQuestion(recipientId, questionText) {
+function sendInterviewQuestion(userId) {
+  const question = getQuestion();
 
   const messageData = {
     recipient: {
-      id: recipientId
+      id: userId,
     },
     message: {
       attachment: {
         type: 'template',
         payload: {
           template_type: 'button',
-          text: questionText,
+          text: question.question_title,
           buttons: [
             {
               type: 'postback',
@@ -188,7 +247,17 @@ function sendInterviewQuestion(recipientId, questionText) {
       },
     },
   };
-  callSendAPI(messageData);
+
+  return interviewQuestions.create({
+      user_id: userId,
+      question_id: question.id,
+    })
+    .then((interviewQuestion) => {
+      callSendAPI(messageData);
+
+      return interviewQuestion;
+    })
+    .catch(error => console.log(error));
 }
 
 /*
