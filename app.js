@@ -119,8 +119,10 @@ function receivedMessage(event) {
   if (postback && postback.payload === 'new_user') {
     console.log(`new_user:${senderId}`);
 
-    return users.findByIdAndUpdate(senderId, { }, { upsert: true })
-      .exec()
+    return users.findByIdAndUpdate(senderId, { }, {
+        new: true,
+        upsert: true, 
+      })
       .then((user) => {
         console.log(`created new user:${senderId}`);
 
@@ -128,7 +130,6 @@ function receivedMessage(event) {
       })
       .catch(error => console.log(error));
   }
-  
 
   users.findById(senderId)
     .populate('current_interview_question')
@@ -224,6 +225,7 @@ function formatInterviewQuestionPayload(userId, questionTitle) {
  * Send an interview question using the Send API.
  */
 function sendInterviewQuestion(user) {
+  console.log(user);
   console.log(`sendInterviewQuestion user:${user._id}`);
   const question = getQuestion();
 
