@@ -21,6 +21,7 @@ const app = express();
 app.set('port', process.env.PORT || 5000);
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
 
+const fbUri = 'https://graph.facebook.com/v2.6/me';
 const APP_SECRET = process.env.MESSENGER_APP_SECRET;
 const VALIDATION_TOKEN = process.env.MESSENGER_VALIDATION_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
@@ -31,10 +32,8 @@ if (!(APP_SECRET && VALIDATION_TOKEN && PAGE_ACCESS_TOKEN && SERVER_URL)) {
   process.exit(1);
 }
 
-/*
- * Use your own validation token. Check that the token used in the Webhook 
- * setup is the same token used here.
- *
+/**
+ * Routes.
  */
 app.get('/webhook', function(req, res) {
   console.log(req.hub);
@@ -48,13 +47,6 @@ app.get('/webhook', function(req, res) {
   }  
 });
 
-/*
- * All callbacks for Messenger are POST-ed. They will be sent to the same
- * webhook. Be sure to subscribe your app to your page to receive callbacks
- * for your page. 
- * https://developers.facebook.com/docs/messenger-platform/product-overview/setup#subscribe_app
- *
- */
 app.post('/webhook', function (req, res) {
   var data = req.body;
 
@@ -86,11 +78,10 @@ app.post('/webhook', function (req, res) {
  */
 function callSendAPI(messageData) {
   request({
-    uri: 'https://graph.facebook.com/v2.6/me/messages',
+    uri: `${fbUri}/messages`,
     qs: { access_token: PAGE_ACCESS_TOKEN },
     method: 'POST',
-    json: messageData
-
+    json: messageData,
   }, function (error, response, body) {
     if (!error && response.statusCode == 200) {
       var recipientId = body.recipient_id;
@@ -123,26 +114,43 @@ function receivedMessage(event) {
   let responseText;
   const senderId = event.sender.id;
   const message = event.message;
+  const postback = event.postback;
+
+  if (postback && postback.payload === 'new_user') {
+    console.log(`new_user:${senderId}`);
+
+    return users.findByIdAndUpdate(senderId, { }, { upsert: true })
+      .exec()
+      .then((user) => {
+        console.log(`created new user:${senderId}`);
+
+        return sendInterviewQuestion(user);
+      })
+      .catch(error => console.log(error));
+  }
+  
 
   users.findById(senderId)
     .populate('current_interview_question')
     .exec()
     .then((user) => {
       if (!(user)) {
-        // TODO: Handle creating a user.
+        // TODO: Safety check: new user should already have been created.
+        return;
       }
-
       console.log(user.current_interview_question);
 
       currentUser = user;
       currentInterviewQuestion = currentUser.current_interview_question;
 
+      // Safety check for current interview question, if not set, send one.
       if (!currentInterviewQuestion) {
         return sendInterviewQuestion(currentUser);
       }
 
-      const dontKnow = event.postback && event.postback.payload === 'dont_know';
+      const dontKnow = postback && postback.payload === 'dont_know';
       if (dontKnow) {
+        console.log('dont_know');
         currentInterviewQuestion.answered = false;
         currentInterviewQuestion.save();
 
@@ -284,5 +292,37 @@ request(url, function (error, response, body) {
     });
   }
 });
+
+/**
+ * Set Welcome greeting.
+ */
+request({
+  method: 'POST',
+  uri: `${fbUri}/thread_settings`,
+  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
+  json: {
+    setting_type: 'greeting',
+    greeting: {
+      text: 'Hey {{user_first_name}}, I\'m Interviewbud, a bot that asks you job interview questions.\n\nI don\'t know whether your answers are good, I\'m just a bot -- here to help you practice for upcoming interviews.',
+    },
+  },
+});
+
+/**
+ * Set Get Started button.
+ */
+request({
+  method: 'POST',
+  uri: `${fbUri}/thread_settings`,
+  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
+  json: {
+    setting_type: 'call_to_actions',
+    thread_state: 'new_thread',
+    call_to_actions: [{
+      payload: 'new_user',
+    }],
+  },
+});
+
 
 module.exports = app;
