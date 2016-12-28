@@ -22,6 +22,7 @@ const interviewQuestionSchema = new mongoose.Schema({
     }
   });
 
-module.exports = function (connection) {
-  return connection.model('interview_questions', interviewQuestionSchema);
-};
+/**
+ * Exports.
+ */
+module.exports = mongoose.model('interview_questions', interviewQuestionSchema);

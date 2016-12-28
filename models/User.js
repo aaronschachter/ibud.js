@@ -5,6 +5,7 @@
  */
 const mongoose = require('mongoose');
 const Promise = require('bluebird');
+const interviewQuestions = require('./InterviewQuestion');
 
 /**
  * Schema.
@@ -25,6 +26,29 @@ const userSchema = new mongoose.Schema({
     }
   });
 
-module.exports = function (connection) {
-  return connection.model('users', userSchema);
-};
+/**
+ * Creates and returns an InterviewQuestion model, sets as User's current Interview Question.
+ */
+userSchema.methods.createInterviewQuestion = function (question) {
+  const user = this;
+  console.log(`createInterviewQuestion question:${question.id}`);
+  console.log(user);
+
+  return mongoose.model('interview_questions').create({
+      user_id: user._id,
+      question_id: question.id,
+    })
+    .then((interviewQuestion) => {
+      console.log(`created interviewQuestion:${interviewQuestion._id}`);
+
+      user.current_interview_question = interviewQuestion._id;
+      user.save();
+
+      return interviewQuestion;
+    });
+}
+
+/**
+ * Exports.
+ */
+module.exports = mongoose.model('users', userSchema);

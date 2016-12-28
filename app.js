@@ -5,16 +5,17 @@ const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const request = require('request');
 
-const mongoose = require ('mongoose');
+const mongoose = require('mongoose');
 const DB_URI = process.env.DB_URI || 'mongodb://localhost/interviewbud';
 mongoose.Promise = global.Promise;
-const conn = mongoose.createConnection(DB_URI);
-const interviewQuestions = require('./models/InterviewQuestion')(conn);
-const users = require('./models/User')(conn);
-
-conn.on('connected', () => {
-  console.log(`conn.readyState:${conn.readyState}`);
+mongoose.connect(DB_URI);
+const db = mongoose.connection;
+db.once('open', () => {
+  console.log('db connected');
 });
+
+const interviewQuestions = require('./models/InterviewQuestion');
+const users = require('./models/User');
 
 const app = express();
 app.set('port', process.env.PORT || 5000);
@@ -82,7 +83,6 @@ app.post('/webhook', function (req, res) {
 /*
  * Call the Send API. The message data goes in the body. If successful, we'll 
  * get the message id in a response 
- *
  */
 function callSendAPI(messageData) {
   request({
@@ -138,19 +138,20 @@ function receivedMessage(event) {
       currentInterviewQuestion = currentUser.current_interview_question;
 
       if (!currentInterviewQuestion) {
-        return sendInterviewQuestion(senderId);
+        return sendInterviewQuestion(currentUser);
       }
 
       const dontKnow = event.postback && event.postback.payload === 'dont_know';
       if (dontKnow) {
         currentInterviewQuestion.answered = false;
         currentInterviewQuestion.save();
-        return sendInterviewQuestion(senderId, true);
+
+        return sendInterviewQuestion(currentUser, true);
       }
 
       if (message.attachments) {
         responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
-        sendTextMessage(senderId, responseText); 
+        return sendTextMessage(senderId, responseText); 
       }
 
       if (message.text) {
@@ -159,49 +160,11 @@ function receivedMessage(event) {
         currentInterviewQuestion.save();
         currentInterviewQuestion.answered = true;
         currentInterviewQuestion.answer = message.text;
-        return sendInterviewQuestion(senderId, true);
+
+        return sendInterviewQuestion(currentUser, true);
        }
     })
-    .then((interviewQuestion) => {
-      console.log(`created interviewQuestion ${interviewQuestion._id.toString()}`);
-      currentUser.current_interview_question = interviewQuestion._id;
-      currentUser.save();
-    })
-    .then((user) => {
-      console.log('updated user.current_interview_question');
-
-      return true;
-    })
     .catch(error => console.log(error));
-
-//   const userData = { last_message_received_at: Date.now() };
-
-//   if (message) {
-//     const messageId = message.mid;
-//     if (message.attachments) {
-//       responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
-//       sendTextMessage(senderId, responseText); 
-//     }
-//     if (message.text) {
-//       // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
-//       userData.last_message_received = message.text;
-//       sendInterviewQuestion(senderId, questionText);
-//     }
-//   } else if (event.postback && event.postback.payload === 'dont_know') {
-//     console.log('dont_know');
-//     sendInterviewQuestion(senderId, questionText);
-//   }
-
-//   users.findByIdAndUpdate(senderId, userData, { upsert: true })
-//     .exec()
-//     .then((user) => {
-//       console.log('users.findByIdAndUpdate success');
-//       console.log(user);
-//     })
-//     .catch((error) => {
-//       console.log('users.findByIdAndUpdate error');
-//       console.log(error);
-//     });
 }
 
 /**
@@ -221,11 +184,9 @@ function sendTextMessage(recipientId, messageText) {
 }
 
 /**
- * Send an interview question using the Send API.
+ * Returns payload for a Interview Question message with I Don't Know button.
  */
-function sendInterviewQuestion(userId) {
-  const question = getQuestion();
-
+function formatInterviewQuestionPayload(userId, questionTitle) {
   const messageData = {
     recipient: {
       id: userId,
@@ -235,7 +196,7 @@ function sendInterviewQuestion(userId) {
         type: 'template',
         payload: {
           template_type: 'button',
-          text: question.question_title,
+          text: questionTitle,
           buttons: [
             {
               type: 'postback',
@@ -248,14 +209,24 @@ function sendInterviewQuestion(userId) {
     },
   };
 
-  return interviewQuestions.create({
-      user_id: userId,
-      question_id: question.id,
-    })
-    .then((interviewQuestion) => {
-      callSendAPI(messageData);
+  return messageData;
+}
 
-      return interviewQuestion;
+/**
+ * Send an interview question using the Send API.
+ */
+function sendInterviewQuestion(user) {
+  console.log(`sendInterviewQuestion user:${user._id}`);
+  const question = getQuestion();
+
+  return user.createInterviewQuestion(question)
+    .then((interviewQuestion) => {
+      console.log(`createInterviewQuestion:${interviewQuestion._id}`);
+
+      const payload = formatInterviewQuestionPayload(user._id, question.question_title);
+      console.log(payload);
+
+      return callSendAPI(payload);
     })
     .catch(error => console.log(error));
 }
