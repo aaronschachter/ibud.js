@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const request = require('request');
 
 const mongoose = require('mongoose');
-const DB_URI = process.env.DB_URI || 'mongodb://localhost/interviewbud';
+const DB_URI = process.env.MONGODB_URI || 'mongodb://localhost/interviewbud';
 mongoose.Promise = global.Promise;
 mongoose.connect(DB_URI);
 const db = mongoose.connection;
