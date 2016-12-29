@@ -149,15 +149,6 @@ function receivedMessage(event) {
         return sendInterviewQuestion(currentUser);
       }
 
-      const dontKnow = postback && postback.payload === 'dont_know';
-      if (dontKnow) {
-        console.log('dont_know');
-        currentInterviewQuestion.answered = false;
-        currentInterviewQuestion.save();
-
-        return sendInterviewQuestion(currentUser, true);
-      }
-
       if (message.attachments) {
         responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
         return sendTextMessage(senderId, responseText); 
@@ -204,15 +195,11 @@ function formatInterviewQuestionPayload(userId, questionTitle) {
       attachment: {
         type: 'template',
         payload: {
-          template_type: 'button',
-          text: questionTitle,
-          buttons: [
-            {
-              type: 'postback',
-              title: 'I don\'t know',
-              payload: 'dont_know',
-            },
-          ],
+          template_type: 'generic',
+          elements: [{
+            title: 'Next question:',
+            subtitle: questionTitle,
+          }],
         },
       },
     },
