@@ -32,13 +32,13 @@ if (!(APP_SECRET && VALIDATION_TOKEN && PAGE_ACCESS_TOKEN && SERVER_URL)) {
   process.exit(1);
 }
 
+const greetingText = 'I\'m Interviewbud, a bot that asks you job interview questions.\n\nI don\'t know whether your answers are good, I\'m just a bot -- here to help you practice for upcoming interviews.';
+
 /**
  * Routes.
  */
 app.get('/webhook', function(req, res) {
-  console.log(req.hub);
-  if (req.query['hub.mode'] === 'subscribe' &&
-      req.query['hub.verify_token'] === VALIDATION_TOKEN) {
+  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VALIDATION_TOKEN) {
     console.log("Validating webhook");
     res.status(200).send(req.query['hub.challenge']);
   } else {
@@ -116,6 +116,14 @@ function receivedMessage(event) {
   const message = event.message;
   const postback = event.postback;
 
+
+  if (postback && postback.payload === 'menu_about') {
+    console.log(`menu_about:${senderId}`);
+    sendTextMessage(senderId, greetingText);
+
+    return;
+  }
+
   if (postback && postback.payload === 'new_user') {
     console.log(`new_user:${senderId}`);
 
@@ -147,6 +155,7 @@ function receivedMessage(event) {
       // Safety check for current interview question, if not set, send one.
       if (!currentInterviewQuestion) {
         return sendInterviewQuestion(currentUser);
+        return;
       }
 
       if (message.attachments) {
@@ -283,7 +292,7 @@ request(url, function (error, response, body) {
 });
 
 /**
- * Set Welcome greeting.
+ * Greeting.
  */
 request({
   method: 'POST',
@@ -292,13 +301,13 @@ request({
   json: {
     setting_type: 'greeting',
     greeting: {
-      text: 'Hey {{user_first_name}}, I\'m Interviewbud, a bot that asks you job interview questions.\n\nI don\'t know whether your answers are good, I\'m just a bot -- here to help you practice for upcoming interviews.',
+      text: `Hey {{user_first_name}}, ${greetingText}`,
     },
   },
 });
 
 /**
- * Set Get Started button.
+ * New thread - Get Started button.
  */
 request({
   method: 'POST',
@@ -313,5 +322,29 @@ request({
   },
 });
 
+/**
+ * Existing thread - Persistent Menu.
+ */
+request({
+  method: 'POST',
+  uri: `${fbUri}/thread_settings`,
+  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
+  json: {
+    setting_type: 'call_to_actions',
+    thread_state: 'existing_thread',
+    call_to_actions: [
+      {
+        type: 'postback',
+        title: 'About',
+        payload: 'menu_about',
+      },
+      {
+        type: 'web_url',
+        title: 'View website',
+        url: 'http://www.interviewbud.com',
+      }
+    ],
+  },
+});
 
 module.exports = app;
