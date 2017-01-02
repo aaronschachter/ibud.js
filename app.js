@@ -14,9 +14,9 @@ db.once('open', () => {
   console.log('db connected');
 });
 
-const answers = require('./models/Answer');
-const questions = require('./models/Question');
-const users = require('./models/User');
+const answers = require('./app/models/Answer');
+const questions = require('./app/models/Question');
+const users = require('./app/models/User');
 
 const app = express();
 app.set('port', process.env.PORT || 5000);

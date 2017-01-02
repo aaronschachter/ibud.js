@@ -21,14 +21,7 @@ const answerSchema = new mongoose.Schema({
     index: true,
   },
   answer: String,
-  },
-  {
-    timestamps: {
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
-    }
-  }
-);
+});
 
 /**
  * Exports.
