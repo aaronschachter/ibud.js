@@ -206,7 +206,7 @@ function formatInterviewQuestionPayload(userId, questionTitle) {
         payload: {
           template_type: 'generic',
           elements: [{
-            title: 'Next question:',
+            title: 'Question:',
             subtitle: questionTitle,
           }],
         },
