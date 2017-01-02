@@ -9,10 +9,17 @@ const Promise = require('bluebird');
 /**
  * Schema.
  */
-const interviewQuestionSchema = new mongoose.Schema({
-  user_id: String,
-  question_id: Number,
-  answered: Boolean,
+const answerSchema = new mongoose.Schema({
+  user: {
+    type: String,
+    ref: 'users',
+    index: true,
+  },
+  question: {
+    type: Number,
+    ref: 'questions',
+    index: true,
+  },
   answer: String,
   },
   {
@@ -20,9 +27,10 @@ const interviewQuestionSchema = new mongoose.Schema({
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     }
-  });
+  }
+);
 
 /**
  * Exports.
  */
-module.exports = mongoose.model('interview_questions', interviewQuestionSchema);
+module.exports = mongoose.model('answers', answerSchema);

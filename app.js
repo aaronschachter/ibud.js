@@ -14,7 +14,7 @@ db.once('open', () => {
   console.log('db connected');
 });
 
-const interviewQuestions = require('./models/InterviewQuestion');
+const answers = require('./models/Answer');
 const questions = require('./models/Question');
 const users = require('./models/User');
 
@@ -114,7 +114,7 @@ function receivedMessage(event) {
   console.log('event');
   console.log(event);
 
-  let currentInterviewQuestion;
+  let currentQuestion;
   let currentUser;
   let responseText;
   const senderId = event.sender.id;
@@ -143,20 +143,18 @@ function receivedMessage(event) {
   }
 
   users.findById(senderId)
-    .populate('current_interview_question')
+    .populate('current_question')
     .exec()
     .then((user) => {
       if (!(user)) {
         // TODO: Safety check: new user should already have been created.
         return;
       }
-      console.log(user.current_interview_question);
 
       currentUser = user;
-      currentInterviewQuestion = currentUser.current_interview_question;
 
-      // Safety check for current interview question, if not set, send one.
-      if (!currentInterviewQuestion) {
+      // Safety check for current question, if not set, send one.
+      if (!currentUser.current_question) {
         return sendInterviewQuestion(currentUser);
       }
 
@@ -168,15 +166,19 @@ function receivedMessage(event) {
       }
 
       if (message.text) {
-        // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
-        currentInterviewQuestion.answered = true;
-        currentInterviewQuestion.answer = message.text;
-        currentInterviewQuestion.save();
-        currentUser.answered = true;
-        currentUser.last_message_received = message.text;
+        return answers.create({
+          user: currentUser._id,
+          question: currentUser.current_question._id,
+          answer: message.text,
+        })
+        .then((answer) => {
+          console.log(`created answer:${answer._id}`);
 
-        return sendInterviewQuestion(currentUser);
-       }
+          return sendInterviewQuestion(currentUser);
+        });
+      }
+
+      console.log('Did not send any response');
     })
     .catch(error => console.log(error));
 }
@@ -198,9 +200,9 @@ function sendTextMessage(recipientId, messageText) {
 }
 
 /**
- * Returns payload for a Interview Question message with I Don't Know button.
+ * Returns payload for a Question message with I Don't Know button.
  */
-function formatInterviewQuestionPayload(userId, questionTitle) {
+function formatQuestionPayload(userId, questionTitle) {
   const messageData = {
     recipient: {
       id: userId,
@@ -233,16 +235,13 @@ function sendInterviewQuestion(user) {
   // TODO: Only getRandomQuestion if User has answered.
   return getRandomQuestion()
     .then((question) => {
-      console.log(question);
       currentQuestion = question;
+      user.current_question = currentQuestion._id;
 
-      return user.createInterviewQuestion(currentQuestion);
+      return user.save();
     })
-    .then((interviewQuestion) => {
-      console.log(`createInterviewQuestion:${interviewQuestion._id}`);
-
-      const payload = formatInterviewQuestionPayload(user._id, currentQuestion.title);
-      console.log(payload);
+    .then(() => {
+      const payload = formatQuestionPayload(user._id, currentQuestion.title);
 
       return callSendAPI(payload);
     })
