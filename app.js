@@ -15,6 +15,7 @@ db.once('open', () => {
 });
 
 const interviewQuestions = require('./models/InterviewQuestion');
+const questions = require('./models/Question');
 const users = require('./models/User');
 
 const app = express();
@@ -100,9 +101,13 @@ function callSendAPI(messageData) {
   });  
 }
 
-function getQuestion() {
-  const index = Math.floor(Math.random() * (app.locals.questions.length));
-  return app.locals.questions[index];
+function getRandomQuestion() {
+  console.log('getRandomQuestion');
+
+  return questions.aggregate([ { $sample: { size: 1 } } ])
+    .exec()
+    .then(results => results[0])
+    .catch(error => console.log(error));
 }
 
 function receivedMessage(event) {
@@ -116,12 +121,9 @@ function receivedMessage(event) {
   const message = event.message;
   const postback = event.postback;
 
-
   if (postback && postback.payload === 'menu_about') {
     console.log(`menu_about:${senderId}`);
     sendTextMessage(senderId, greetingText);
-
-    return;
   }
 
   if (postback && postback.payload === 'new_user') {
@@ -132,6 +134,7 @@ function receivedMessage(event) {
         upsert: true, 
       })
       .then((user) => {
+        user.answered = false;
         console.log(`created new user:${senderId}`);
 
         return sendInterviewQuestion(user);
@@ -155,22 +158,24 @@ function receivedMessage(event) {
       // Safety check for current interview question, if not set, send one.
       if (!currentInterviewQuestion) {
         return sendInterviewQuestion(currentUser);
-        return;
       }
 
       if (message.attachments) {
         responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
-        return sendTextMessage(senderId, responseText); 
+        sendTextMessage(senderId, responseText);
+
+        return sendInterviewQuestion(currentUser);
       }
 
       if (message.text) {
         // TODO: Check if it's a command check if it's a command like Help, Hello, Quit, Who is this?
-        currentUser.last_message_received = message.text;
-        currentInterviewQuestion.save();
         currentInterviewQuestion.answered = true;
         currentInterviewQuestion.answer = message.text;
+        currentInterviewQuestion.save();
+        currentUser.answered = true;
+        currentUser.last_message_received = message.text;
 
-        return sendInterviewQuestion(currentUser, true);
+        return sendInterviewQuestion(currentUser);
        }
     })
     .catch(error => console.log(error));
@@ -223,13 +228,20 @@ function formatInterviewQuestionPayload(userId, questionTitle) {
 function sendInterviewQuestion(user) {
   console.log(user);
   console.log(`sendInterviewQuestion user:${user._id}`);
-  const question = getQuestion();
+  let currentQuestion;
 
-  return user.createInterviewQuestion(question)
+  // TODO: Only getRandomQuestion if User has answered.
+  return getRandomQuestion()
+    .then((question) => {
+      console.log(question);
+      currentQuestion = question;
+
+      return user.createInterviewQuestion(currentQuestion);
+    })
     .then((interviewQuestion) => {
       console.log(`createInterviewQuestion:${interviewQuestion._id}`);
 
-      const payload = formatInterviewQuestionPayload(user._id, question.question_title);
+      const payload = formatInterviewQuestionPayload(user._id, currentQuestion.title);
       console.log(payload);
 
       return callSendAPI(payload);
@@ -267,8 +279,6 @@ function verifyRequestSignature(req, res, buf) {
   }
 }
 
-app.locals.questions = [];
-
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
 // certificate authority.
@@ -280,11 +290,23 @@ request(url, function (error, response, body) {
       const category = Number(question.categories[0]);
       // Hardcoded to only ask general questions for now.
       if (category == 1) {
-        app.locals.questions.push(question);
+        return questions.findByIdAndUpdate(question.id, 
+          {
+            title: question.question_title,
+            category,
+          }, 
+          {
+            new: true,
+            upsert: true, 
+          }
+        )
+        .then((question) => {
+          console.log(`Updated question ${question._id}: ${question.title}`);
+        })
+        .catch(error => console.log(error));
       }
     });
 
-    console.log(`Loaded ${app.locals.questions.length} questions.`);
     app.listen(app.get('port'), function() {
       console.log('Node app is running on port', app.get('port'));
     });

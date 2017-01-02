@@ -31,12 +31,12 @@ const userSchema = new mongoose.Schema({
  */
 userSchema.methods.createInterviewQuestion = function (question) {
   const user = this;
-  console.log(`createInterviewQuestion question:${question.id}`);
+  console.log(`createInterviewQuestion question:${question._id}`);
   console.log(user);
 
   return mongoose.model('interview_questions').create({
       user_id: user._id,
-      question_id: question.id,
+      question_id: question._id,
     })
     .then((interviewQuestion) => {
       console.log(`created interviewQuestion:${interviewQuestion._id}`);
