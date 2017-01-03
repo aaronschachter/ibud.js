@@ -1,8 +1,6 @@
 'use strict'
 
 const express = require('express');
-const bodyParser = require('body-parser');
-const crypto = require('crypto');
 const request = require('request');
 
 const mongoose = require('mongoose');
@@ -21,12 +19,14 @@ const users = require('./app/models/User');
 
 const app = express();
 app.set('port', process.env.PORT || 5000);
-app.use(bodyParser.json({ verify: verifyRequestSignature }));
+const bodyParser = require('body-parser');
+app.use(bodyParser.json({ verify: facebook.verifyRequestSignature }));
 
 const APP_SECRET = process.env.MESSENGER_APP_SECRET;
 const VALIDATION_TOKEN = process.env.MESSENGER_VALIDATION_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
 const SERVER_URL = process.env.SERVER_URL;
+const debug = false;
 
 if (!(APP_SECRET && VALIDATION_TOKEN && PAGE_ACCESS_TOKEN && SERVER_URL)) {
   console.error("Missing config values");
@@ -191,7 +191,6 @@ function formatQuestionPayload(userId, questionTitle) {
  * Send an interview question using the Send API.
  */
 function sendInterviewQuestion(user) {
-  console.log(user);
   console.log(`sendInterviewQuestion user:${user._id}`);
   let currentQuestion;
 
@@ -209,36 +208,6 @@ function sendInterviewQuestion(user) {
       return facebook.postMessage(payload);
     })
     .catch(error => console.log(error));
-}
-
-/*
- * Verify that the callback came from Facebook. Using the App Secret from 
- * the App Dashboard, we can verify the signature that is sent with each 
- * callback in the x-hub-signature field, located in the header.
- *
- * https://developers.facebook.com/docs/graph-api/webhooks#setup
- *
- */
-function verifyRequestSignature(req, res, buf) {
-  var signature = req.headers["x-hub-signature"];
-
-  if (!signature) {
-    // For testing, let's log an error. In production, you should throw an 
-    // error.
-    console.error("Couldn't validate the signature.");
-  } else {
-    var elements = signature.split('=');
-    var method = elements[0];
-    var signatureHash = elements[1];
-
-    var expectedHash = crypto.createHmac('sha1', APP_SECRET)
-                        .update(buf)
-                        .digest('hex');
-
-    if (signatureHash != expectedHash) {
-      throw new Error("Couldn't validate the request signature.");
-    }
-  }
 }
 
 // Start server
@@ -263,7 +232,9 @@ request(url, function (error, response, body) {
           }
         )
         .then((question) => {
-          console.log(`Updated question ${question._id}: ${question.title}`);
+          if (debug) {
+            console.log(`Updated question ${question._id}: ${question.title}`);
+          }
         })
         .catch(error => console.log(error));
       }
