@@ -277,59 +277,41 @@ request(url, function (error, response, body) {
 });
 
 /**
- * Greeting.
+ * Thread settings.
  */
-request({
-  method: 'POST',
-  uri: `${fbUri}/thread_settings`,
-  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
-  json: {
-    setting_type: 'greeting',
-    greeting: {
-      text: `Hey {{user_first_name}}, ${greetingText}`,
+const greeting =  {
+  setting_type: 'greeting',
+  greeting: {
+    text: `Hey {{user_first_name}}, ${greetingText}`,
+  },
+};
+messenger.postThreadSettings(greeting);
+
+const newThread = {
+  setting_type: 'call_to_actions',
+  thread_state: 'new_thread',
+  call_to_actions: [{
+    payload: 'new_user',
+  }],
+};
+messenger.postThreadSettings(newThread);
+
+const existingThread = {
+  setting_type: 'call_to_actions',
+  thread_state: 'existing_thread',
+  call_to_actions: [
+    {
+      type: 'postback',
+      title: 'About Interviewbud',
+      payload: 'menu_about',
     },
-  },
-});
-
-/**
- * New thread - Get Started button.
- */
-request({
-  method: 'POST',
-  uri: `${fbUri}/thread_settings`,
-  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
-  json: {
-    setting_type: 'call_to_actions',
-    thread_state: 'new_thread',
-    call_to_actions: [{
-      payload: 'new_user',
-    }],
-  },
-});
-
-/**
- * Existing thread - Persistent Menu.
- */
-request({
-  method: 'POST',
-  uri: `${fbUri}/thread_settings`,
-  qs: { access_token : process.env.MESSENGER_PAGE_ACCESS_TOKEN },
-  json: {
-    setting_type: 'call_to_actions',
-    thread_state: 'existing_thread',
-    call_to_actions: [
-      {
-        type: 'postback',
-        title: 'About',
-        payload: 'menu_about',
-      },
-      {
-        type: 'web_url',
-        title: 'View website',
-        url: 'http://www.interviewbud.com',
-      }
-    ],
-  },
-});
+    {
+      type: 'web_url',
+      title: 'View website',
+      url: 'http://www.interviewbud.com',
+    }
+  ],
+};
+messenger.postThreadSettings(existingThread);
 
 module.exports = app;
