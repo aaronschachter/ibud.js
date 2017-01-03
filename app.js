@@ -14,6 +14,7 @@ db.once('open', () => {
   console.log('db connected');
 });
 
+const messenger = require('./lib/messenger');
 const answers = require('./app/models/Answer');
 const questions = require('./app/models/Question');
 const users = require('./app/models/User');
@@ -72,43 +73,6 @@ app.post('/webhook', function (req, res) {
     res.sendStatus(200);
   }
 });
-
-/*
- * Call the Send API. The message data goes in the body. If successful, we'll 
- * get the message id in a response 
- */
-function callSendAPI(messageData) {
-  request({
-    uri: `${fbUri}/messages`,
-    qs: { access_token: PAGE_ACCESS_TOKEN },
-    method: 'POST',
-    json: messageData,
-  }, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      var recipientId = body.recipient_id;
-      var messageId = body.message_id;
-
-      if (messageId) {
-        console.log("Successfully sent message with id %s to recipient %s", 
-          messageId, recipientId);
-      } else {
-      console.log("Successfully called Send API for recipient %s", 
-        recipientId);
-      }
-    } else {
-      console.error("Failed calling Send API", response.statusCode, response.statusMessage, body.error);
-    }
-  });  
-}
-
-function getRandomQuestion() {
-  console.log('getRandomQuestion');
-
-  return questions.aggregate([ { $sample: { size: 1 } } ])
-    .exec()
-    .then(results => results[0])
-    .catch(error => console.log(error));
-}
 
 function receivedMessage(event) {
   console.log('event');
@@ -196,7 +160,7 @@ function sendTextMessage(recipientId, messageText) {
     }
   };
 
-  callSendAPI(messageData);
+  messenger.postMessage(messageData);
 }
 
 /**
@@ -233,7 +197,7 @@ function sendInterviewQuestion(user) {
   let currentQuestion;
 
   // TODO: Only getRandomQuestion if User has answered.
-  return getRandomQuestion()
+  return questions.getRandom()
     .then((question) => {
       currentQuestion = question;
       user.current_question = currentQuestion._id;
@@ -243,7 +207,7 @@ function sendInterviewQuestion(user) {
     .then(() => {
       const payload = formatQuestionPayload(user._id, currentQuestion.title);
 
-      return callSendAPI(payload);
+      return messenger.postMessage(payload);
     })
     .catch(error => console.log(error));
 }
