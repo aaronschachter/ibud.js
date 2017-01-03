@@ -14,7 +14,7 @@ db.once('open', () => {
   console.log('db connected');
 });
 
-const messenger = require('./lib/messenger');
+const facebook = require('./lib/messenger');
 const answers = require('./app/models/Answer');
 const questions = require('./app/models/Question');
 const users = require('./app/models/User');
@@ -23,7 +23,6 @@ const app = express();
 app.set('port', process.env.PORT || 5000);
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
 
-const fbUri = 'https://graph.facebook.com/v2.6/me';
 const APP_SECRET = process.env.MESSENGER_APP_SECRET;
 const VALIDATION_TOKEN = process.env.MESSENGER_VALIDATION_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
@@ -160,7 +159,7 @@ function sendTextMessage(recipientId, messageText) {
     }
   };
 
-  messenger.postMessage(messageData);
+  facebook.postMessage(messageData);
 }
 
 /**
@@ -207,7 +206,7 @@ function sendInterviewQuestion(user) {
     .then(() => {
       const payload = formatQuestionPayload(user._id, currentQuestion.title);
 
-      return messenger.postMessage(payload);
+      return facebook.postMessage(payload);
     })
     .catch(error => console.log(error));
 }
@@ -285,7 +284,7 @@ const greeting =  {
     text: `Hey {{user_first_name}}, ${greetingText}`,
   },
 };
-messenger.postThreadSettings(greeting);
+facebook.postThreadSettings(greeting);
 
 const newThread = {
   setting_type: 'call_to_actions',
@@ -294,7 +293,7 @@ const newThread = {
     payload: 'new_user',
   }],
 };
-messenger.postThreadSettings(newThread);
+facebook.postThreadSettings(newThread);
 
 const existingThread = {
   setting_type: 'call_to_actions',
@@ -312,6 +311,6 @@ const existingThread = {
     }
   ],
 };
-messenger.postThreadSettings(existingThread);
+facebook.postThreadSettings(existingThread);
 
 module.exports = app;
