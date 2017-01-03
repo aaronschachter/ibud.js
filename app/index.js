@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router(); // eslint-disable-line new-cap
+const logger = require('winston');
 
 const facebook = require('../lib/messenger');
 const helpers = require('../lib/helpers');
@@ -10,8 +11,7 @@ const questions = require('./models/Question');
 const users = require('./models/User')
 
 function receivedMessage(event) {
-  console.log('event');
-  console.log(event);
+  logger.info(`received event:${JSON.stringify(event)}`);
 
   let currentQuestion;
   let currentUser;
