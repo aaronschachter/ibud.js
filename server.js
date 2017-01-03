@@ -33,7 +33,7 @@ app.use('/', router);
 
 // Start server.
 app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
+  console.log('Interviewbud is running on port', app.get('port'));
 });
 
 const request = require('request');
@@ -60,11 +60,7 @@ request(url, function (error, response, body) {
             upsert: true, 
           }
         )
-        .then((question) => {
-          if (debug) {
-            console.log(`Updated question ${question._id}: ${question.title}`);
-          }
-        })
+        .then(question => console.log(`Updated question ${question._id}`))
         .catch(error => console.log(error));
       }
     });
