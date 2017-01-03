@@ -86,7 +86,7 @@ function receivedMessage(event) {
 
   if (postback && postback.payload === 'menu_about') {
     console.log(`menu_about:${senderId}`);
-    sendTextMessage(senderId, greetingText);
+    facebook.sendTextMessage(senderId, greetingText);
   }
 
   if (postback && postback.payload === 'new_user') {
@@ -123,7 +123,7 @@ function receivedMessage(event) {
 
       if (message.attachments) {
         responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
-        sendTextMessage(senderId, responseText);
+        facebook.sendTextMessage(senderId, responseText);
 
         return sendInterviewQuestion(currentUser);
       }
@@ -147,47 +147,6 @@ function receivedMessage(event) {
 }
 
 /**
- * Send a text message using the Send API.
- */
-function sendTextMessage(recipientId, messageText) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      text: messageText,
-    }
-  };
-
-  facebook.postMessage(messageData);
-}
-
-/**
- * Returns payload for a Question message with I Don't Know button.
- */
-function formatQuestionPayload(userId, questionTitle) {
-  const messageData = {
-    recipient: {
-      id: userId,
-    },
-    message: {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'generic',
-          elements: [{
-            title: 'Question:',
-            subtitle: questionTitle,
-          }],
-        },
-      },
-    },
-  };
-
-  return messageData;
-}
-
-/**
  * Send an interview question using the Send API.
  */
 function sendInterviewQuestion(user) {
@@ -202,11 +161,7 @@ function sendInterviewQuestion(user) {
 
       return user.save();
     })
-    .then(() => {
-      const payload = formatQuestionPayload(user._id, currentQuestion.title);
-
-      return facebook.postMessage(payload);
-    })
+    .then(() => facebook.sendGenericTemplate(user._id, 'Question', currentQuestion.title))
     .catch(error => console.log(error));
 }
 
