@@ -16,6 +16,17 @@ const questionSchema = new mongoose.Schema({
 });
 
 /**
+ * Returns a random question.
+ * TODO: Pass parameter to avoid repeat questions.
+ */
+questionSchema.statics.getRandom = function () {
+  return this.aggregate([ { $sample: { size: 1 } } ])
+    .exec()
+    .then(results => results[0])
+    .catch(error => console.log(error));
+}
+
+/**
  * Exports.
  */
 module.exports = mongoose.model('questions', questionSchema);
