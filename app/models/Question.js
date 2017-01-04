@@ -17,10 +17,13 @@ const questionSchema = new mongoose.Schema({
 
 /**
  * Returns a random question.
- * TODO: Pass parameter to avoid repeat questions.
  */
-questionSchema.statics.getRandom = function () {
-  return this.aggregate([ { $sample: { size: 1 } } ])
+questionSchema.statics.getRandomQuestionNotEqualTo = function (excludeQuestion) {
+  const query = [{ $sample: { size: 1 } }];
+  if (excludeQuestion) {
+    query.push({ $match: { _id: { $ne: excludeQuestion._id } } });
+  }
+  return this.aggregate(query)
     .exec()
     .then(results => results[0])
     .catch(error => console.log(error));

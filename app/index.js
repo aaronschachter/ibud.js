@@ -113,7 +113,7 @@ function sendCurrentQuestion(user) {
 function sendNewQuestion(user) {
   logger.info(`sendNewQuestion:${user._id}`);
 
-  return questions.getRandom()
+  return questions.getRandomQuestionNotEqualTo(user.current_question)
     .then(question => sendQuestionToUser(question, user))
     .catch(error => logger.error(error));
 }
