@@ -7,15 +7,13 @@ const logger = require('winston');
 const facebook = require('../lib/messenger');
 const helpers = require('../lib/helpers');
 const answers = require('./models/Answer');
+const messages = require('./models/Message');
 const questions = require('./models/Question');
 const users = require('./models/User')
 
 function receivedMessage(event) {
   logger.info(`received event:${JSON.stringify(event)}`);
 
-  let currentQuestion;
-  let currentUser;
-  let responseText;
   const senderId = event.sender.id;
   const message = event.message;
   const postback = event.postback;
@@ -36,6 +34,12 @@ function receivedMessage(event) {
       .catch(error => logger.error(error));
   }
 
+  let currentMessage = {
+    _id: event.message.mid,
+    timestamp: event.timestamp,
+  };
+  let currentUser;
+
   users.findById(senderId)
     .populate('current_question')
     .exec()
@@ -46,38 +50,48 @@ function receivedMessage(event) {
       }
 
       currentUser = user;
+      currentMessage.user = currentUser._id;
 
       // Safety check for current question, if not set, send one.
-      if (!currentUser.current_question) {
+      if (!currentUser.current_question._id) {
+        currentMessage.current_question = null;
+
         return sendNewQuestion(currentUser);
       }
 
       logger.info(`currentUser.current_question:${currentUser.current_question._id}`);
+      currentMessage.current_question = currentUser.current_question._id;
 
       if (postback && postback.payload === 'menu_about') {
         logger.info(`menu_about:${senderId}`);
+        currentMessage.response_type = 'menu_about';
         facebook.sendTextMessage(senderId, helpers.greetingText);
 
         return sendCurrentQuestion(currentUser);
       }
 
       if (message.attachments) {
-        responseText = 'Sorry, I don\'t understand, I\'m just a bot. Please send your answer as text.';
-        facebook.sendTextMessage(senderId, responseText);
+        currentMessage.response_type = 'attachments';
+        currentMessage.attachments = message.attachments;
+        const text = 'Sorry, I don\'t understand, I\'m just a bot. Please send your answer as text.';
+        facebook.sendTextMessage(senderId, text);
 
         return sendCurrentQuestion(currentUser);
       }
 
       if (message.text) {
+        currentMessage.text = message.text;
         // Check if sent message is a command. 
         const command = message.text.toLowerCase();
         if (command === 'help' || command === 'question' || command === 'q') {
+          currentMessage.response_type = 'help';
           const message = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can';
           facebook.sendTextMessage(senderId, message);
 
           return sendCurrentQuestion(currentUser);          
         }
         if (command === 'skip' || command === 'next') {
+          currentMessage.response_type = 'skip';
           const message = 'Okay, skipping that question for now.';
           facebook.sendTextMessage(senderId, message);
 
@@ -91,6 +105,7 @@ function receivedMessage(event) {
           answer: message.text,
         })
         .then((answer) => {
+          currentMessage.response_type = 'answered';
           logger.info(`created answer:${answer._id}`);
 
           return sendNewQuestion(currentUser);
@@ -98,6 +113,14 @@ function receivedMessage(event) {
       }
 
       logger.error('Did not send any response');
+    })
+    .then(() => {
+      return messages.create(currentMessage);
+    })
+    .then((message) => {
+      logger.debug(`created message:${message._id}`);
+
+      return true;
     })
     .catch(error => logger.error(error));
 }
