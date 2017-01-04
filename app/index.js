@@ -114,7 +114,17 @@ function sendNewQuestion(user) {
   logger.info(`sendNewQuestion:${user._id}`);
 
   return questions.getRandomQuestionNotEqualTo(user.current_question)
-    .then(question => sendQuestionToUser(question, user))
+    .then((question) => {
+      // Randomly get nulls returned from aggregate query if when sending answers quickly.
+      if (!question) {
+        logger.error('no question returned');
+
+        return sendNewQuestion(user);
+      }
+      logger.info(`got random question:${question._id}`);
+
+      return sendQuestionToUser(question, user);
+    })
     .catch(error => logger.error(error));
 }
 

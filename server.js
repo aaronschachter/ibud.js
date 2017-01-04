@@ -12,6 +12,7 @@ const facebook = require('./lib/messenger');
 app.use(bodyParser.json({ verify: facebook.verifyRequestSignature }));
 
 const logger = require('winston');
+logger.level = process.env.WINSTON_LEVEL || 'info';
 
 /**
  * Check for required config.

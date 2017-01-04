@@ -5,6 +5,7 @@
  */
 const mongoose = require('mongoose');
 const Promise = require('bluebird');
+const logger = require('winston');
 
 /**
  * Schema.
@@ -20,13 +21,14 @@ const questionSchema = new mongoose.Schema({
  */
 questionSchema.statics.getRandomQuestionNotEqualTo = function (excludeQuestion) {
   const query = [{ $sample: { size: 1 } }];
-  if (excludeQuestion) {
+  if (excludeQuestion && excludeQuestion._id) {
     query.push({ $match: { _id: { $ne: excludeQuestion._id } } });
   }
+
   return this.aggregate(query)
     .exec()
     .then(results => results[0])
-    .catch(error => console.log(error));
+    .catch(error => logger.error(error));
 }
 
 /**
