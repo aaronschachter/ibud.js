@@ -20,13 +20,8 @@ function receivedMessage(event) {
   const message = event.message;
   const postback = event.postback;
 
-  if (postback && postback.payload === 'menu_about') {
-    console.log(`menu_about:${senderId}`);
-    facebook.sendTextMessage(senderId, helpers.greetingText);
-  }
-
   if (postback && postback.payload === 'new_user') {
-    console.log(`new_user:${senderId}`);
+    logger.info(`new_user:${senderId}`);
 
     return users.findByIdAndUpdate(senderId, { }, {
         new: true,
@@ -34,11 +29,11 @@ function receivedMessage(event) {
       })
       .then((user) => {
         user.answered = false;
-        console.log(`created new user:${senderId}`);
+        logger.info(`created new user:${senderId}`);
 
-        return sendQuestion(user);
+        return sendNewQuestion(user);
       })
-      .catch(error => console.log(error));
+      .catch(error => logger.error(error));
   }
 
   users.findById(senderId)
@@ -54,14 +49,23 @@ function receivedMessage(event) {
 
       // Safety check for current question, if not set, send one.
       if (!currentUser.current_question) {
-        return sendQuestion(currentUser);
+        return sendNewQuestion(currentUser);
+      }
+
+      logger.info(`currentUser.current_question:${currentUser.current_question._id}`);
+
+      if (postback && postback.payload === 'menu_about') {
+        logger.info(`menu_about:${senderId}`);
+        facebook.sendTextMessage(senderId, helpers.greetingText);
+
+        return sendCurrentQuestion(currentUser);
       }
 
       if (message.attachments) {
-        responseText = 'Sorry, you can\'t answer an interview question with an attachment. If only.';
+        responseText = 'Sorry, I dont\'t understand, I\'m just a bot. Please send your answer as text.';
         facebook.sendTextMessage(senderId, responseText);
 
-        return sendQuestion(currentUser);
+        return sendCurrentQuestion(currentUser);
       }
 
       if (message.text) {
@@ -71,43 +75,56 @@ function receivedMessage(event) {
           answer: message.text,
         })
         .then((answer) => {
-          console.log(`created answer:${answer._id}`);
+          logger.info(`created answer:${answer._id}`);
 
-          return sendQuestion(currentUser);
+          return sendNewQuestion(currentUser);
         });
       }
 
-      console.log('Did not send any response');
+      logger.error('Did not send any response');
     })
-    .catch(error => console.log(error));
+    .catch(error => logger.error(error));
+}
+
+function sendCurrentQuestion(user) {
+  logger.info(`sendCurrentQuestion:${user._id}`);
+
+  // Assumes question has been populated.
+  const question = user.current_question;
+  return sendQuestionToUser(question, user);
+}
+
+function sendNewQuestion(user) {
+  logger.info(`sendNewQuestion:${user._id}`);
+
+  return questions.getRandom()
+    .then(question => sendQuestionToUser(question, user))
+    .catch(error => logger.error(error));
 }
 
 /**
  * Send an interview question using the Send API.
  */
-function sendQuestion(user) {
-  console.log(`sendQuestion user:${user._id}`);
-  let currentQuestion;
+function sendQuestionToUser(question, user) {
+  logger.info(`sendQuestion question:${question._id} user:${user._id}`);
 
-  // TODO: Only getRandomQuestion if User has answered.
-  return questions.getRandom()
-    .then((question) => {
-      currentQuestion = question;
-      user.current_question = currentQuestion._id;
+  user.current_question = question._id;
 
-      return user.save();
-    })
-    .then(() => facebook.sendGenericTemplate(user._id, 'Question', currentQuestion.title))
-    .catch(error => console.log(error));
+  return user.save()
+    .then(() => facebook.sendGenericTemplate(user._id, 'Question', question.title))
+    .catch(error => logger.error(error));
 }
 
+/**
+ * Routes.
+ */
 router.get('/webhook', function(req, res) {
   const token = process.env.MESSENGER_VALIDATION_TOKEN;
   if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === token) {
-    console.log("Validating webhook");
+    logger.info('GET /webhook: Validating');
     res.status(200).send(req.query['hub.challenge']);
   } else {
-    console.error("Failed validation. Make sure the validation tokens match.");
+    logger.error('Failed validation. Make sure the validation tokens match.');
     res.sendStatus(403);          
   }  
 });
