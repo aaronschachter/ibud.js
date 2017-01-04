@@ -69,6 +69,22 @@ function receivedMessage(event) {
       }
 
       if (message.text) {
+        // Check if sent message is a command. 
+        const command = message.text.toLowerCase();
+        if (command === 'help' || command === 'question' || command === 'q') {
+          const message = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can';
+          facebook.sendTextMessage(senderId, message);
+
+          return sendCurrentQuestion(currentUser);          
+        }
+        if (command === 'skip' || command === 'next') {
+          const message = 'Okay, skipping that question for now.';
+          facebook.sendTextMessage(senderId, message);
+
+          return sendNewQuestion(currentUser);          
+        }
+
+        // Otherwise use the sent message as the question answer.
         return answers.create({
           user: currentUser._id,
           question: currentUser.current_question._id,
