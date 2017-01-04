@@ -62,7 +62,7 @@ function receivedMessage(event) {
       }
 
       if (message.attachments) {
-        responseText = 'Sorry, I dont\'t understand, I\'m just a bot. Please send your answer as text.';
+        responseText = 'Sorry, I don\'t understand, I\'m just a bot. Please send your answer as text.';
         facebook.sendTextMessage(senderId, responseText);
 
         return sendCurrentQuestion(currentUser);
