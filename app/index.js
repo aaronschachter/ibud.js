@@ -11,6 +11,9 @@ const messages = require('./models/Message');
 const questions = require('./models/Question');
 const users = require('./models/User')
 
+/**
+ * Handles messages sent to our Messenger webhook.
+ */
 function receivedMessage(event) {
   logger.info(`received event:${JSON.stringify(event)}`);
 
@@ -18,49 +21,21 @@ function receivedMessage(event) {
   const message = event.message;
   const postback = event.postback;
 
-  if (postback && postback.payload === 'new_user') {
-    logger.info(`new_user:${senderId}`);
-
-    return users.findByIdAndUpdate(senderId, { }, {
-        new: true,
-        upsert: true, 
-      })
-      .then((user) => {
-        user.answered = false;
-        logger.info(`created new user:${senderId}`);
-
-        return sendNewQuestion(user);
-      })
-      .catch(error => logger.error(error));
-  }
-
   let currentMessage = {
     _id: event.message.mid,
     timestamp: event.timestamp,
   };
   let currentUser;
+  const update = { last_sent_message: message.mid };
+  const options =  { new: true, upsert: true };
 
-  users.findById(senderId)
+  return users
+    .findByIdAndUpdate(senderId, update, options)
     .populate('current_question')
-    .exec()
     .then((user) => {
-      if (!(user)) {
-        // TODO: Safety check: new user should already have been created.
-        return;
-      }
-
+      logger.info(`loaded user:${user._id}`);
       currentUser = user;
       currentMessage.user = currentUser._id;
-
-      // Safety check for current question, if not set, send one.
-      if (!currentUser.current_question._id) {
-        currentMessage.current_question = null;
-
-        return sendNewQuestion(currentUser);
-      }
-
-      logger.info(`currentUser.current_question:${currentUser.current_question._id}`);
-      currentMessage.current_question = currentUser.current_question._id;
 
       if (postback && postback.payload === 'menu_about') {
         logger.info(`menu_about:${senderId}`);
@@ -85,7 +60,7 @@ function receivedMessage(event) {
         const command = message.text.toLowerCase();
         if (command === 'help' || command === 'question' || command === 'q') {
           currentMessage.response_type = 'help';
-          const message = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can';
+          const message = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can.';
           facebook.sendTextMessage(senderId, message);
 
           return sendCurrentQuestion(currentUser);          
@@ -96,6 +71,13 @@ function receivedMessage(event) {
           facebook.sendTextMessage(senderId, message);
 
           return sendNewQuestion(currentUser);          
+        }
+        if (message.text.length < 4) {
+          currentMessage.response_type = 'invalid_length';
+          const message = 'Send a real answer, please :|';
+          facebook.sendTextMessage(senderId, message);
+
+          return sendCurrentQuestion(currentUser);         
         }
 
         // Otherwise use the sent message as the question answer.
@@ -111,9 +93,8 @@ function receivedMessage(event) {
           return sendNewQuestion(currentUser);
         });
       }
-
-      logger.error('Did not send any response');
     })
+    // TODO: Send sent Messenger Message ID and store as response on our Message model.
     .then(() => {
       return messages.create(currentMessage);
     })
@@ -125,14 +106,23 @@ function receivedMessage(event) {
     .catch(error => logger.error(error));
 }
 
+/**
+ * Send question stored on user.current_question.
+ */
 function sendCurrentQuestion(user) {
   logger.info(`sendCurrentQuestion:${user._id}`);
 
-  // Assumes question has been populated.
   const question = user.current_question;
+  if (!question) {
+    return sendNewQuestion(user);
+  }
+
   return sendQuestionToUser(question, user);
 }
 
+/**
+ * Generate new random question not equal to current, and send to user.
+ */
 function sendNewQuestion(user) {
   logger.info(`sendNewQuestion:${user._id}`);
 
