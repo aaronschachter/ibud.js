@@ -11,6 +11,24 @@ const messages = require('./models/Message');
 const questions = require('./models/Question');
 const users = require('./models/User')
 
+function sendTextThenCurrentQuestion(user, text) {
+  logger.info('sendTextThenCurrentQuestion');
+
+  return facebook
+    .sendTextMessage(user._id, text)
+    .then(() => sendCurrentQuestion(user))
+    .catch(error => logger.error(error));
+}
+
+function sendTextThenNewQuestion(user, text) {
+  logger.info('sendTextThenNewQuestion');
+
+  return facebook
+    .sendTextMessage(user._id, text)
+    .then(() => sendNewQuestion(user))
+    .catch(error => logger.error(error));
+}
+
 /**
  * Handles messages sent to our Messenger webhook.
  */
@@ -21,37 +39,45 @@ function receivedMessage(event) {
   const message = event.message;
   const postback = event.postback;
 
-  let currentMessage = {
-    _id: event.message.mid,
-    timestamp: event.timestamp,
-  };
+  let currentMessage = { timestamp: event.timestamp };
   let currentUser;
-  const update = { last_sent_message: message.mid };
+  let updateUser = { };
+
+  if (message) {
+    const mid = message.mid;
+    currentMessage.mid = mid;
+    updateUser.last_sent_message = mid;
+  }
   const options =  { new: true, upsert: true };
 
   return users
-    .findByIdAndUpdate(senderId, update, options)
+    .findByIdAndUpdate(senderId, updateUser, options)
     .populate('current_question')
     .then((user) => {
       logger.info(`loaded user:${user._id}`);
       currentUser = user;
       currentMessage.user = currentUser._id;
 
+      if (postback && postback.payload === 'new_user') {
+        logger.info(`new_user:${senderId}`);
+        currentMessage.response_type = 'new_user';
+
+        return sendNewQuestion(currentUser);
+      }
+
       if (postback && postback.payload === 'menu_about') {
         logger.info(`menu_about:${senderId}`);
         currentMessage.response_type = 'menu_about';
-        facebook.sendTextMessage(senderId, helpers.greetingText);
 
-        return sendCurrentQuestion(currentUser);
+        return sendTextThenCurrentQuestion(currentUser, helpers.greetingText)
       }
 
       if (message.attachments) {
         currentMessage.response_type = 'attachments';
         currentMessage.attachments = message.attachments;
         const text = 'Sorry, I don\'t understand, I\'m just a bot. Please send your answer as text.';
-        facebook.sendTextMessage(senderId, text);
 
-        return sendCurrentQuestion(currentUser);
+        return sendTextThenCurrentQuestion(currentUser, text);
       }
 
       if (message.text) {
@@ -60,24 +86,21 @@ function receivedMessage(event) {
         const command = message.text.toLowerCase();
         if (command === 'help' || command === 'question' || command === 'q') {
           currentMessage.response_type = 'help';
-          const message = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can.';
-          facebook.sendTextMessage(senderId, message);
+          const text = 'Got a question? Email a human at info@interviewbud.com and we\'ll get back to you as soon as we can. Until then, let\'s keep practicing!';
 
-          return sendCurrentQuestion(currentUser);          
+          return sendTextThenCurrentQuestion(currentUser, text);         
         }
         if (command === 'skip' || command === 'next') {
           currentMessage.response_type = 'skip';
-          const message = 'Okay, skipping that question for now.';
-          facebook.sendTextMessage(senderId, message);
+          const text = 'Okay, skipping that question for now.';
 
-          return sendNewQuestion(currentUser);          
+          return sendTextThenNewQuestion(currentUser, text);          
         }
         if (message.text.length < 4) {
           currentMessage.response_type = 'invalid_length';
-          const message = 'Send a real answer, please :|';
-          facebook.sendTextMessage(senderId, message);
+          const text = 'Send a real answer, please :|';
 
-          return sendCurrentQuestion(currentUser);         
+          return sendTextThenCurrentQuestion(currentUser, text);          
         }
 
         // Otherwise use the sent message as the question answer.
@@ -145,7 +168,7 @@ function sendNewQuestion(user) {
  * Send an interview question using the Send API.
  */
 function sendQuestionToUser(question, user) {
-  logger.info(`sendQuestion question:${question._id} user:${user._id}`);
+  logger.info(`sending question:${question._id} to user:${user._id}`);
 
   user.current_question = question._id;
 

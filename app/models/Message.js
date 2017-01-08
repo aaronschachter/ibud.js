@@ -10,10 +10,7 @@ const Promise = require('bluebird');
  * Schema.
  */
 const messageSchema = new mongoose.Schema({
-  _id: {
-    type: String,
-    index: true,
-  },
+  mid: String,
   user: {
     type: String,
     ref: 'users',
