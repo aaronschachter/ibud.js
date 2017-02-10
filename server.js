@@ -43,6 +43,9 @@ db.once('open', () => {
 /**
  * Routes.
  */
+const twilioRouter = require('./app/twilio');
+app.use('/sms', twilioRouter);
+
 const router = require('./app/index');
 app.use('/', router);
 

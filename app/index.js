@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router(); // eslint-disable-line new-cap
 const logger = require('winston');
+const twilio = require('twilio');
 
 const facebook = require('../lib/messenger');
 const helpers = require('../lib/helpers');
