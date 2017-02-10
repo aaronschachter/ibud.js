@@ -181,7 +181,7 @@ function sendQuestionToUser(question, user) {
 /**
  * Routes.
  */
-router.get('/webhook', function(req, res) {
+router.get('/', function(req, res) {
   const token = process.env.MESSENGER_VALIDATION_TOKEN;
   if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === token) {
     logger.info('GET /webhook: Validating');
@@ -192,7 +192,7 @@ router.get('/webhook', function(req, res) {
   }  
 });
 
-router.post('/webhook', function (req, res) {
+router.post('/', function (req, res) {
   const data = req.body;
 
   if (data.object === 'page') {

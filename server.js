@@ -43,11 +43,11 @@ db.once('open', () => {
 /**
  * Routes.
  */
-const twilioRouter = require('./app/twilio');
+const twilioRouter = require('./app/sms');
 app.use('/sms', twilioRouter);
 
-const router = require('./app/index');
-app.use('/', router);
+const router = require('./app/messenger');
+app.use('/messenger', router);
 
 /**
  * Start server.
