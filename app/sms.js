@@ -2,6 +2,9 @@
 
 const express = require('express');
 const router = express.Router();
+const bodyParser = require('body-parser');
+router.use(bodyParser.urlencoded({ extended: true })); 
+
 const twilio = require('twilio');
 const logger = require('winston');
 const questions = require('./models/Question');

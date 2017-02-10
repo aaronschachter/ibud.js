@@ -1,12 +1,15 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router(); // eslint-disable-line new-cap
+const router = express.Router();
+
 const logger = require('winston');
 const twilio = require('twilio');
-
-const facebook = require('../lib/messenger');
 const helpers = require('../lib/helpers');
+const facebook = require('../lib/messenger');
+const bodyParser = require('body-parser');
+router.use(bodyParser.json({ verify: facebook.verifyRequestSignature }));
+
 const answers = require('./models/Answer');
 const messages = require('./models/Message');
 const questions = require('./models/Question');
