@@ -9,7 +9,8 @@ app.set('port', process.env.PORT || 5000);
 
 const bodyParser = require('body-parser');
 const facebook = require('./lib/messenger');
-app.use(bodyParser.json({ verify: facebook.verifyRequestSignature }));
+// app.use(bodyParser.json({ verify: facebook.verifyRequestSignature }));
+app.use(bodyParser.urlencoded({ extended: true })); 
 
 const logger = require('winston');
 logger.level = process.env.WINSTON_LEVEL || 'info';
