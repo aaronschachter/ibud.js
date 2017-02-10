@@ -17,26 +17,36 @@ function sendResponse(res, msgTxt) {
   console.log(twiml.toString());
 }
 
+// TODO: Pass current question once we store it.
+function sendQuestion(res) {
+  return questions.getRandomQuestionNotEqualTo(null)
+    .then(question => sendResponse(res, question.title))
+    .catch(err => logger.error(err));
+}
+
+function sendWelcome(res, senderId) {
+  logger.debug(`sendWelcome:${senderId}`);
+
+  return users.create({ _id: senderId })
+    .then((user) => {
+      const msg = 'Oh hey, I\'m Interviewbud -- a bot who asks you job interview questions.\n\nI don\'t know whether your answers are any good or not, I\'m just a bot here to help you practice.\n\nReady to begin?';
+
+      return sendResponse(res, msg);    
+    })
+    .catch(err => logger.error(err));
+}
+
 router.post('/', function (req, res) {
   const senderId = req.body.From;
 
-  const currentUser = users.findById(senderId)
-    .populate('current_question')
-    .exec();
+  return users.findById(senderId)
+    .exec()
+    .then((user) => {
+      if (!user) {
+        return sendWelcome(res, senderId);
+      }
 
-  currentUser.then((user) => {
-    if (!user) {
-      return users.create({ _id: senderId })
-        .then((user) => {
-          const msg = 'Oh hey, I\'m Interviewbud -- a bot who asks you job interview questions.\n\nI don\'t know whether your answers are any good or not, I\'m just a bot here to help you practice.\n\nReady to begin?';
-
-          return sendResponse(res, msg);    
-        }) 
-    }
-
-    // TODO: Store user's current question to avoid asking same question twice.
-    return questions.getRandomQuestionNotEqualTo(null)
-      .then(question => sendResponse(res, question.title));
+      return sendQuestion(res);
     })
     .catch(error => logger.log(error));
 });
